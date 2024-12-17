@@ -1,0 +1,60 @@
+{
+  "name": "movie-dir",
+  "version": "1.0.0",
+  "description": "Movie Directory",
+  "main": "server.js",
+  "repository": "https://github.com/Varun0803/movie-dir.git",
+  "author": "Varun <vbansal0803@gmail.com>",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "pm2 start ecosystem.config.json --no-daemon",
+    "dev": "cross-env NODE_ENV=development nodemon server.js"
+  },
+  "keywords": [
+    "node",
+    "node.js",
+    "express",
+    "rest",
+    "api",
+    "mongodb",
+    "mongoose",
+    "docker",
+    "passport",
+    "joi"
+  ],
+  "dependencies": {
+    "axios": "^1.7.7",
+    "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "cross-env": "^7.0.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "express-mongo-sanitize": "^2.0.0",
+    "express-rate-limit": "^5.0.0",
+    "helmet": "^4.1.0",
+    "http-status": "^1.4.0",
+    "joi": "^17.3.0",
+    "jsonwebtoken": "^8.5.1",
+    "luxon": "^3.5.0",
+    "mongoose": "^5.7.7",
+    "morgan": "^1.9.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.15",
+    "passport": "^0.4.0",
+    "passport-jwt": "^4.0.0",
+    "pm2": "^5.1.0",
+    "swagger-jsdoc": "^6.0.8",
+    "swagger-ui-express": "^4.1.6",
+    "validator": "^13.0.0",
+    "winston": "^3.2.1",
+    "xss": "^1.0.15"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.0"
+  }
+}

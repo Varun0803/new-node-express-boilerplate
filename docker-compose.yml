@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    container_name: node-app
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      - MONGODB_URL=${MONGODB_URL}
+      - REDIS_PORT=${REDIS_PORT}
+      - REDIS_HOST=${REDIS_HOST}
