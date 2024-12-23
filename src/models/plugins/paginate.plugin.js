@@ -19,41 +19,91 @@ const paginate = (schema) => {
    * @param {number} [options.page] - Current page (default = 1)
    * @returns {Promise<QueryResult>}
    */
-  schema.statics.paginate = async function (filter, options) {
-    let sort = '';
-    if (options.sortBy) {
-      const sortingCriteria = [];
-      options.sortBy.split(',').forEach((sortOption) => {
-        const [key, order] = sortOption.split(':');
-        sortingCriteria.push((order === 'desc' ? '-' : '') + key);
-      });
-      sort = sortingCriteria.join(' ');
-    } else {
-      sort = 'createdAt';
-    }
+  schema.statics.paginate = async function ({
+    filter = {},
+    fields = {},
+    options = {},
+  }) {
+    try {
+      fields = fields || {};
+      let { sort, limit, page, search, populate, ...rest } = options || {};
+      let { text = '', fields: searchFields } = search || {};
+      const finalText = text.replace(/[+*?^$.\[\]{}()|\\]/g, '\\$&');
+      const searchTerm = new RegExp(`${finalText}`, 'i');
+      let newFilter = { ...filter };
+      if (searchFields?.length && searchTerm) {
+        searchingRegex = {
+          $or: searchFields.map((field) => ({
+            [field]: searchTerm,
+          })),
+        };
+        newFilter = { $and: [filter, searchingRegex] };
+      }
+      if (sort) {
+        sort = Object.entries(sort).reduce((acc, [field, order]) => {
+          // Handle sort field and order separately
+          const sortOrder = `${order}` === '1' ? 1 : -1;
+          acc[field] = sortOrder;
+          return acc;
+        }, {});
+      } else {
+        sort = { createdAt: 1 };
+      }
+      const convertedFields = Object.entries(fields).reduce(
+        (acc, [key, value]) => {
+          if (typeof value === 'string' && !isNaN(value)) {
+            acc[key] = parseInt(value);
+          } else {
+            acc[key] = value;
+          }
+          return acc;
+        },
+        {}
+      );
 
-    const limit = options.limit && parseInt(options.limit, 10) > 0 ? parseInt(options.limit, 10) : 10;
-    const page = options.page && parseInt(options.page, 10) > 0 ? parseInt(options.page, 10) : 1;
-    const skip = (page - 1) * limit;
+      limit = limit && parseInt(limit, 10) > 0 ? parseInt(limit, 10) : 10;
+      page = page && parseInt(page, 10) > 0 ? parseInt(page, 10) : 1;
+      const skip = (page - 1) * limit;
+      const countPromise = this.countDocuments(newFilter).exec();
+      options = { ...rest, sort, skip, limit };
 
-    const countPromise = this.countDocuments(filter).exec();
-    let docsPromise = this.find(filter).sort(sort).skip(skip).limit(limit);
+      let docsPromise = this.find(newFilter, convertedFields, options);
 
-    if (options.populate) {
-      options.populate.split(',').forEach((populateOption) => {
-        docsPromise = docsPromise.populate(
-          populateOption
-            .split('.')
-            .reverse()
-            .reduce((a, b) => ({ path: b, populate: a }))
+      if (populate) {
+        docsPromise = Object.entries(populate).reduce(
+          (currentQuery, [path, selectFields]) => {
+            const fields = selectFields.reduce(
+              (acc, data) => {
+                const nestedFields = data.split('.');
+                acc.select.push(nestedFields[0]);
+                nestedFields.length > 1
+                  ? acc.populate.push({
+                      path: nestedFields[0],
+                      select: nestedFields[1],
+                    })
+                  : '';
+                return acc;
+              },
+              { select: [], populate: [] }
+            );
+            const select = fields.select.join(' ');
+            const populateOptions = fields.populate;
+            return currentQuery.populate({
+              path,
+              select,
+              populate: populateOptions,
+            });
+          },
+          docsPromise
         );
-      });
-    }
+      }
 
-    docsPromise = docsPromise.exec();
+      docsPromise = docsPromise.exec();
 
-    return Promise.all([countPromise, docsPromise]).then((values) => {
-      const [totalResults, results] = values;
+      const [totalResults, results] = await Promise.all([
+        countPromise,
+        docsPromise,
+      ]);
       const totalPages = Math.ceil(totalResults / limit);
       const result = {
         results,
@@ -61,9 +111,13 @@ const paginate = (schema) => {
         limit,
         totalPages,
         totalResults,
+        searchingText: text || false,
       };
       return Promise.resolve(result);
-    });
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
   };
 };
 

@@ -31,10 +31,10 @@ const register = catchAsync(async (req, res) => {
 const login = catchAsync(async (req, res) => {
   try {
     const { email, password } = req.allParams;
-    const user = await authService.loginUserWithEmailAndPassword(
+    const user = await authService.loginUserWithEmailAndPassword({
       email,
-      password
-    );
+      password,
+    });
     const tokens = await tokenService.generateAuthTokens(user);
     res.status(httpStatus.OK).json({
       user,
@@ -69,7 +69,7 @@ const logout = catchAsync(async (req, res) => {
 const refreshTokens = catchAsync(async (req, res) => {
   try {
     const { refreshToken } = req.allParams;
-    const tokens = await authService.refreshAuth(refreshToken);
+    const tokens = await authService.refreshAuth({ refreshToken });
     res.status(httpStatus.OK).json({
       tokens,
       status: httpStatus.OK,

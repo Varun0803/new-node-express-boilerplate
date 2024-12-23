@@ -3,13 +3,16 @@ const pick = require('../utils/pick');
 const ApiError = require('../utils/ApiError');
 const catchAsync = require('../utils/catchAsync');
 const { userService } = require('../services');
+const { authMessage } = require('../config/httpMessages');
 
 const createUser = catchAsync(async (req, res) => {
   try {
-    const user = await userService.createUser(req.body);
+    const { name, email, password } = req.allParams;
+    const user = await userService.createUser({ name, email, password });
     res.status(httpStatus.CREATED).json({
-      message: 'User created successfully',
+      message: authMessage.USER_CREATED_SUCCESSFULLY,
       status: httpStatus.CREATED,
+      _id: user._id,
     });
   } catch (error) {
     res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -21,9 +24,13 @@ const createUser = catchAsync(async (req, res) => {
 
 const getUsers = catchAsync(async (req, res) => {
   try {
-    const filter = pick(req.query, ['name', 'role']);
-    const options = pick(req.query, ['sortBy', 'limit', 'page']);
-    const result = await userService.queryUsers(filter, options);
+    const {
+      fields = {},
+      filter = {},
+      options = {},
+      context: { user = {} },
+    } = req.allParams;
+    const result = await userService.queryUsers({ filter, fields, options });
     res.status(httpStatus.OK).json({
       data: result,
       status: httpStatus.OK,
@@ -38,9 +45,10 @@ const getUsers = catchAsync(async (req, res) => {
 
 const getUser = catchAsync(async (req, res) => {
   try {
-    const user = await userService.getUserById(req.params.userId);
+    const { _id, fields, options } = req.allParams;
+    const user = await userService.getUserById({ _id, fields, options });
     if (!user) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+      throw new ApiError(httpStatus.NOT_FOUND, authMessage.USER_NOT_FOUND);
     }
     res.status(httpStatus.OK).json({
       data: user,
@@ -56,11 +64,15 @@ const getUser = catchAsync(async (req, res) => {
 
 const updateUser = catchAsync(async (req, res) => {
   try {
-    const user = await userService.updateUserById(req.params.userId, req.body);
-    res.status(httpStatus.OK).json({
-      message: 'User updated successfully',
-      status: httpStatus.OK,
-    });
+    let { _id, context, ...update } = req.allParams || {};
+    const user = await userService.updateUserById({ _id, update, context });
+    if (user) {
+      res.status(httpStatus.OK).json({
+        message: authMessage.USER_UPDATED_SUCCESSFULLY,
+        status: httpStatus.OK,
+        _id: user._id,
+      });
+    }
   } catch (error) {
     res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
       message: error.message,
@@ -71,9 +83,14 @@ const updateUser = catchAsync(async (req, res) => {
 
 const deleteUser = catchAsync(async (req, res) => {
   try {
-    const user = await userService.deleteUserById(req.params.userId);
+    let { _id, filter, options } = req.allParams || {};
+
+    _id = _id || filter?._id || null;
+    options = options || {};
+
+    const user = await userService.deleteUserById({ _id, options });
     res.status(httpStatus.OK).json({
-      message: 'User deleted successfully',
+      message: authMessage.USER_DELETED_SUCCESSFULLY,
       status: httpStatus.NO_CONTENT,
     });
   } catch (error) {
@@ -83,7 +100,6 @@ const deleteUser = catchAsync(async (req, res) => {
     });
   }
 });
-
 
 module.exports = {
   createUser,

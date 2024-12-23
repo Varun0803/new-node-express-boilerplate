@@ -52,7 +52,7 @@ const logout = async (refreshToken) => {
  * @param {string} refreshToken
  * @returns {Promise<Object>}
  */
-const refreshAuth = async (refreshToken) => {
+const refreshAuth = async ({ refreshToken }) => {
   try {
     const refreshTokenDoc = await tokenService.verifyToken(
       refreshToken,

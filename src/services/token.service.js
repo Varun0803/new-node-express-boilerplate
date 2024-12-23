@@ -2,7 +2,6 @@ const jwt = require('jsonwebtoken');
 const { DateTime } = require('luxon');
 const httpStatus = require('http-status');
 const config = require('../config/config');
-const userService = require('./user.service');
 const { Token } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { tokenTypes } = require('../config/tokens');
@@ -20,7 +19,7 @@ const generateToken = (userId, expires, type, secret = config.jwt.secret) => {
   const payload = {
     sub: userId,
     iat: Math.floor(DateTime.now().toSeconds()),
-    exp: expires.unix(),
+    exp: Math.floor(expires.toSeconds()),
     type,
   };
   return jwt.sign(payload, secret);
@@ -39,7 +38,7 @@ const saveToken = async (token, userId, expires, type, blacklisted = false) => {
   const tokenDoc = await Token.create({
     token,
     user: userId,
-    expires: expires.toDate(),
+    expires: expires,
     type,
     blacklisted,
   });
@@ -53,7 +52,15 @@ const saveToken = async (token, userId, expires, type, blacklisted = false) => {
  * @returns {Promise<Token>}
  */
 const verifyToken = async (token, type) => {
-  const payload = jwt.verify(token, config.jwt.secret);
+  let payload;
+  try {
+    payload = jwt.verify(token, config.jwt.secret);
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      throw new ApiError(httpStatus.UNAUTHORIZED, 'Session Expired');
+    }
+    throw new ApiError(httpStatus.UNAUTHORIZED, authMessage.INVALID_TOKEN);
+  }
   const tokenDoc = await Token.findOne({
     token,
     type,
@@ -78,7 +85,7 @@ const generateAuthTokens = async (user) => {
 
   const accessToken = generateToken(
     user.id,
-    accessTokenExpires,
+    accessTokenExpires.toUTC(),
     tokenTypes.ACCESS
   );
 
@@ -88,24 +95,24 @@ const generateAuthTokens = async (user) => {
 
   const refreshToken = generateToken(
     user.id,
-    refreshTokenExpires,
+    refreshTokenExpires.toUTC(),
     tokenTypes.REFRESH
   );
   await saveToken(
     refreshToken,
     user.id,
-    refreshTokenExpires,
+    refreshTokenExpires.toUTC(),
     tokenTypes.REFRESH
   );
 
   return {
     access: {
       token: accessToken,
-      expires: accessTokenExpires.toDate(),
+      expires: accessTokenExpires.toUTC(),
     },
     refresh: {
       token: refreshToken,
-      expires: refreshTokenExpires.toDate(),
+      expires: refreshTokenExpires.toUTC(),
     },
   };
 };
@@ -126,13 +133,13 @@ const generateResetPasswordToken = async (email) => {
 
   const resetPasswordToken = generateToken(
     user.id,
-    expires,
+    expires.toUTC(),
     tokenTypes.RESET_PASSWORD
   );
   await saveToken(
     resetPasswordToken,
     user.id,
-    expires,
+    expires.toUTC(),
     tokenTypes.RESET_PASSWORD
   );
   return resetPasswordToken;
@@ -150,10 +157,15 @@ const generateVerifyEmailToken = async (user) => {
 
   const verifyEmailToken = generateToken(
     user.id,
-    expires,
+    expires.toUTC(),
     tokenTypes.VERIFY_EMAIL
   );
-  await saveToken(verifyEmailToken, user.id, expires, tokenTypes.VERIFY_EMAIL);
+  await saveToken(
+    verifyEmailToken,
+    user.id,
+    expires.toUTC(),
+    tokenTypes.VERIFY_EMAIL
+  );
   return verifyEmailToken;
 };
 

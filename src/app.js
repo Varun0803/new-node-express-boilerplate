@@ -21,6 +21,10 @@ if (config.env !== 'test') {
   app.use(morgan.errorHandler);
 }
 
+app.get('/', (req, res) => {
+  res.send('Server is running...');
+});
+
 // set security HTTP headers
 app.use(helmet());
 

@@ -9,13 +9,17 @@ const { authMessage } = require('../config/httpMessages');
  * @returns {Promise<User>}
  */
 const createUser = async ({ name, email, password }) => {
-  if (await User.isEmailTaken(email)) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      authMessage.EMAIL_ALREADY_REGISTERED
-    );
+  try {
+    if (await User.isEmailTaken(email)) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        authMessage.EMAIL_ALREADY_REGISTERED
+      );
+    }
+    return User.create({ name, email, password });
+  } catch (err) {
+    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, err.message);
   }
-  return User.create({ name, email, password });
 };
 
 /**
@@ -27,8 +31,8 @@ const createUser = async ({ name, email, password }) => {
  * @param {number} [options.page] - Current page (default = 1)
  * @returns {Promise<QueryResult>}
  */
-const queryUsers = async (filter, options) => {
-  const users = await User.paginate(filter, options);
+const queryUsers = async ({ filter, fields, options }) => {
+  const users = await User.paginate({ filter, fields, options });
   return users;
 };
 
@@ -37,8 +41,45 @@ const queryUsers = async (filter, options) => {
  * @param {ObjectId} id
  * @returns {Promise<User>}
  */
-const getUserById = async (id) => {
-  return User.findById(id);
+const getUserById = async ({ _id, fields, options }) => {
+  try {
+    const { populate, ...queryOptions } = options;
+    let query = User.findById(_id, fields, queryOptions);
+
+    if (populate) {
+      query = Object.entries(populate).reduce(
+        (currentQuery, [path, selectFields]) => {
+          const fields = selectFields.reduce(
+            (acc, data) => {
+              const nestedFields = data.split('.');
+              acc.select.push(nestedFields[0]);
+              nestedFields.length > 1
+                ? acc.populate.push({
+                    path: nestedFields[0],
+                    select: nestedFields[1],
+                  })
+                : '';
+              return acc;
+            },
+            { select: [], populate: [] }
+          );
+          const select = fields.select.join(' ');
+          const populateOptions = fields.populate;
+          return currentQuery.populate({
+            path,
+            select,
+            populate: populateOptions,
+          });
+        },
+        query
+      );
+    }
+
+    const result = await query.exec();
+    return result;
+  } catch (err) {
+    throw new ApiError(httpStatus.BAD_REQUEST, err.message);
+  }
 };
 
 /**
@@ -56,22 +97,41 @@ const getUserByEmail = async (email) => {
  * @param {Object} updateBody
  * @returns {Promise<User>}
  */
-const updateUserById = async (userId, updateBody) => {
-  let user = await getUserById(userId);
+const updateUserById = async ({ _id, update, context }) => {
+  let user = await User.findById(_id);
   if (!user) {
     throw new ApiError(httpStatus.NOT_FOUND, authMessage.USER_NOT_FOUND);
   }
-  if (updateBody.email && (await User.isEmailTaken(updateBody.email, userId))) {
-    throw new ApiError(
-      httpStatus.BAD_REQUEST,
-      authMessage.EMAIL_ALREADY_REGISTERED
-    );
+  const { user: loggedInUser } = context || {};
+  const { set, unset, push, pull, options = {} } = update || {};
+
+  const updates = {};
+  if (unset) {
+    updates.$unset = unset;
   }
-  user = await User.findByIdAndUpdate(
-    userId,
-    { $set: updateBody },
-    { new: true, runValidators: true }
-  );
+  if (pull) {
+    updates.$pull = pull;
+  }
+  if (push) {
+    updates.$push = push;
+  }
+  if (set) {
+    if (set.email && (await User.isEmailTaken(set.email, _id))) {
+      throw new ApiError(
+        httpStatus.BAD_REQUEST,
+        authMessage.EMAIL_ALREADY_REGISTERED
+      );
+    }
+    if (loggedInUser.role !== 'admin' || loggedInUser.id !== _id) {
+      throw new ApiError(httpStatus.BAD_REQUEST, authMessage.FORBIDDEN);
+    }
+    updates.$set = set;
+  }
+  user = await User.findByIdAndUpdate({ _id }, updates, {
+    ...options,
+    new: true,
+    runValidators: true,
+  });
   return user;
 };
 
@@ -80,21 +140,14 @@ const updateUserById = async (userId, updateBody) => {
  * @param {ObjectId} userId
  * @returns {Promise<User>}
  */
-const deleteUserById = async (userId) => {
-  const user = await getUserById(userId);
+const deleteUserById = async ({ _id, options }) => {
+  const user = await User.findById(_id);
   if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
+    throw new ApiError(httpStatus.NOT_FOUND, authMessage.USER_NOT_FOUND);
   }
-  await user.remove();
-  return user;
+  await User.deleteOne({ _id }, options);
+  return true;
 };
-
-// const EnableEmailSubscription = async (id) => {
-//   const user = await getUserById(id);
-//   user.isEmailSubscribed = !user.isEmailSubscribed;
-//   await user.save();
-//   return user;
-// };
 
 module.exports = {
   createUser,
@@ -103,5 +156,4 @@ module.exports = {
   getUserByEmail,
   updateUserById,
   deleteUserById,
-  // EnableEmailSubscription,
 };
