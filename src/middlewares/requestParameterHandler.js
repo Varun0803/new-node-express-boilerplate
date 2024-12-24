@@ -22,7 +22,7 @@ const getRequestParams = (req) => {
       allParams[key] = parseJSON(query[key]);
     }
   }
-  allParams.context = req.user || {};
+  allParams.context = req.context || {};
 
   return allParams;
 };

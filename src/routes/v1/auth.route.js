@@ -2,7 +2,7 @@ const express = require('express');
 const validate = require('../../middlewares/validate');
 const authValidation = require('../../validations/auth.validation');
 const authController = require('../../controllers/auth.controller');
-const auth = require('../../middlewares/auth');
+const { auth } = require('../../middlewares/auth');
 const aggregateRequestDataMiddleware = require('../../middlewares/requestParameterHandler');
 const { userValidation } = require('../../validations');
 const { userController } = require('../../controllers');
@@ -16,15 +16,16 @@ router.post(
   authController.register
 );
 
-router.post('/login', validate(authValidation.login), authController.login);
-
-router.post('/logout', validate(authValidation.logout), authController.logout);
-
 router.post(
-  '/refresh-tokens',
-  validate(authValidation.refreshTokens),
-  authController.refreshTokens
+  '/login',
+  aggregateRequestDataMiddleware,
+  validate(authValidation.login),
+  authController.login
 );
+
+router.post('/logout', auth(), authController.logout);
+
+router.post('/refresh-tokens', authController.refreshTokens);
 
 router.post(
   '/forgot-password',
@@ -55,7 +56,7 @@ router.post(
 router.get(
   '/self',
   auth(),
-  validate(authValidation.getMe),
+  aggregateRequestDataMiddleware,
   authController.getUser
 );
 

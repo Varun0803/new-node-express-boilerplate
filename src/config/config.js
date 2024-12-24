@@ -33,6 +33,16 @@ const envVarsSchema = Joi.object()
     ),
     BASE_BACKEND_URL: Joi.string().description('base backend url'),
     BASE_FRONTEND_URL: Joi.string().description('base frontend url'),
+    ALLOWED_ORIGINS: Joi.string().description('allowed origins'),
+    LOGGER_ENABLE: Joi.boolean().description('enable logger'),
+    ALLOWED_REQUEST_TYPES_TO_LOG: Joi.string()
+      .default('all')
+      .description('allowed request types'),
+    RATE_LIMIT_MAX_REQUESTS: Joi.number().default(50),
+    RATE_LIMIT_TIME: Joi.number().default(60000),
+    DEFAULT_ADMIN_NAME: Joi.string().required(),
+    DEFAULT_ADMIN_EMAIL: Joi.string().required(),
+    DEFAULT_ADMIN_PASSWORD: Joi.string().required(),
   })
   .unknown();
 
@@ -49,11 +59,7 @@ module.exports = {
   port: envVars.PORT,
   mongoose: {
     url: envVars.MONGODB_URL + (envVars.NODE_ENV === 'test' ? '-test' : ''),
-    options: {
-      useCreateIndex: true,
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    },
+    options: {},
   },
   jwt: {
     secret: envVars.JWT_SECRET,
@@ -76,4 +82,16 @@ module.exports = {
   },
   baseBackendUrl: envVars.BASE_BACKEND_URL,
   baseFrontendUrl: envVars.BASE_FRONTEND_URL,
+  allowedOrigins: envVars.ALLOWED_ORIGINS,
+  logger: {
+    enable: envVars.LOGGER_ENABLE,
+    allowedRequestTypes: envVars.ALLOWED_REQUEST_TYPES_TO_LOG,
+  },
+  rateLimitMaxRequests: envVars.RATE_LIMIT_MAX_REQUESTS,
+  rateLimitTime: envVars.RATE_LIMIT_TIME,
+  defaultAdmin: {
+    name: envVars.DEFAULT_ADMIN_NAME,
+    email: envVars.DEFAULT_ADMIN_EMAIL,
+    password: envVars.DEFAULT_ADMIN_PASSWORD,
+  },
 };

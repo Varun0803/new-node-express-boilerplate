@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const app = require('./src/app');
 const config = require('./src/config/config');
 const logger = require('./src/config/logger');
+const { seedUsers } = require('./src/models/seeder');
 
 let server;
 mongoose.connect(config.mongoose.url, config.mongoose.options).then(() => {
@@ -9,6 +10,7 @@ mongoose.connect(config.mongoose.url, config.mongoose.options).then(() => {
   server = app.listen(config.port, () => {
     logger.info(`Listening to port ${config.port}`);
   });
+  seedUsers();
 });
 
 const exitHandler = () => {
@@ -24,7 +26,7 @@ const exitHandler = () => {
 
 const unexpectedErrorHandler = (error) => {
   logger.error(error);
-  exitHandler();
+  // exitHandler();
 };
 
 process.on('uncaughtException', unexpectedErrorHandler);

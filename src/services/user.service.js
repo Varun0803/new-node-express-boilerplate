@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const { status: httpStatus } = require('http-status');
 const { User } = require('../models');
 const ApiError = require('../utils/ApiError');
 const { authMessage } = require('../config/httpMessages');
@@ -11,14 +11,12 @@ const { authMessage } = require('../config/httpMessages');
 const createUser = async ({ name, email, password }) => {
   try {
     if (await User.isEmailTaken(email)) {
-      throw new ApiError(
-        httpStatus.BAD_REQUEST,
-        authMessage.EMAIL_ALREADY_REGISTERED
-      );
+      throw new ApiError(400, authMessage.EMAIL_ALREADY_REGISTERED);
     }
     return User.create({ name, email, password });
   } catch (err) {
-    throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, err.message);
+    console.log(httpStatus.BAD_REQUEST);
+    throw new ApiError(httpStatus.BAD_REQUEST, err.message);
   }
 };
 
@@ -41,7 +39,7 @@ const queryUsers = async ({ filter, fields, options }) => {
  * @param {ObjectId} id
  * @returns {Promise<User>}
  */
-const getUserById = async ({ _id, fields, options }) => {
+const getUserById = async ({ _id, fields = {}, options = {} }) => {
   try {
     const { populate, ...queryOptions } = options;
     let query = User.findById(_id, fields, queryOptions);

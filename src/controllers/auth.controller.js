@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const { status: httpStatus } = require('http-status');
 const catchAsync = require('../utils/catchAsync');
 const {
   authService,
@@ -8,17 +8,31 @@ const {
 } = require('../services');
 const { authMessage } = require('../config/httpMessages');
 const ApiError = require('../utils/ApiError');
+const { tokenTypes } = require('../config/tokens');
 
 const register = catchAsync(async (req, res) => {
   try {
     const { name, email, password } = req.allParams;
     const user = await userService.createUser({ name, email, password });
-    const tokens = await tokenService.generateAuthTokens(user);
-    res.status(httpStatus.CREATED).json({
+    const tokens = await tokenService.generateAuthTokens({
       user,
-      tokens,
-      status: httpStatus.CREATED,
-      message: authMessage.ACCOUNT_CREATED_SUCCESSFULLY,
+      ipAddress: req.headers['x-forwarded-for'] || req.ip,
+    });
+    res.cookie(tokenTypes.ACCESS, tokens.access.token, {
+      //httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      expires: tokens.access.expires,
+    });
+    res.cookie(tokenTypes.REFRESH, tokens.refresh.token, {
+      // httpOnly: true,
+      secure: true,
+      sameSite: 'Strict',
+      expires: tokens.refresh.expires,
+    });
+    res.status(200).json({
+      message: authMessage.USER_CREATED_SUCCESSFULLY,
+      status: 200,
     });
   } catch (error) {
     res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -35,12 +49,25 @@ const login = catchAsync(async (req, res) => {
       email,
       password,
     });
-    const tokens = await tokenService.generateAuthTokens(user);
-    res.status(httpStatus.OK).json({
+    const tokens = await tokenService.generateAuthTokens({
       user,
-      tokens,
-      status: httpStatus.OK,
+      ipAddress: req.headers['x-forwarded-for'] || req.ip,
+    });
+    res.cookie(tokenTypes.ACCESS, tokens.access.token, {
+      //httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      expires: tokens.access.expires,
+    });
+    res.cookie(tokenTypes.REFRESH, tokens.refresh.token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Strict',
+      expires: tokens.refresh.expires,
+    });
+    res.status(httpStatus.OK).json({
       message: authMessage.USER_LOGGED_IN_SUCCESSFULLY,
+      status: httpStatus.OK,
     });
   } catch (error) {
     res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
@@ -52,8 +79,13 @@ const login = catchAsync(async (req, res) => {
 
 const logout = catchAsync(async (req, res) => {
   try {
-    const { refreshToken } = req.allParams;
-    await authService.logout(refreshToken);
+    const refreshToken = req.cookies.refresh;
+    if (!refreshToken) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, authMessage.INVALID_TOKEN);
+    }
+    await authService.logout({ refreshToken });
+    res.clearCookie(tokenTypes.ACCESS);
+    res.clearCookie(tokenTypes.REFRESH);
     res.status(httpStatus.OK).json({
       message: authMessage.USER_LOGGED_OUT_SUCCESSFULLY,
       status: httpStatus.NO_CONTENT,
@@ -68,8 +100,20 @@ const logout = catchAsync(async (req, res) => {
 
 const refreshTokens = catchAsync(async (req, res) => {
   try {
-    const { refreshToken } = req.allParams;
-    const tokens = await authService.refreshAuth({ refreshToken });
+    const refreshToken = req.cookies.refresh;
+    if (!refreshToken) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, authMessage.SESSION_EXPIRED);
+    }
+    const tokens = await authService.refreshAuth({
+      refreshToken,
+      ipAddress: req.headers['x-forwarded-for'] || req.ip,
+    });
+    res.cookie(tokenTypes.ACCESS, tokens.access.token, {
+      // httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      expires: tokens.access.expires,
+    });
     res.status(httpStatus.OK).json({
       tokens,
       status: httpStatus.OK,
@@ -153,10 +197,8 @@ const verifyEmail = catchAsync(async (req, res) => {
 
 const getUser = catchAsync(async (req, res) => {
   try {
-    const user = await userService.getUserById(req.user._id);
-    if (!user) {
-      throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-    }
+    const { context } = req.allParams;
+    const { user } = context;
     res.status(httpStatus.OK).json({
       data: user,
       status: httpStatus.OK,

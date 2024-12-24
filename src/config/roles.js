@@ -1,7 +1,9 @@
 const allRoles = {
-  guest: [],
-  user: [],
   admin: [],
+  doctor: [],
+  patient: [],
+  receptionist: [],
+  therapist: [],
 };
 
 const roles = Object.keys(allRoles);
@@ -11,4 +13,3 @@ module.exports = {
   roles,
   roleRights,
 };
-

@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { DateTime } = require('luxon');
-const httpStatus = require('http-status');
+const { status: httpStatus } = require('http-status');
 const config = require('../config/config');
 const { Token } = require('../models');
 const ApiError = require('../utils/ApiError');
@@ -15,9 +15,16 @@ const { authMessage } = require('../config/httpMessages');
  * @param {string} [secret]
  * @returns {string}
  */
-const generateToken = (userId, expires, type, secret = config.jwt.secret) => {
+const generateToken = (
+  userId,
+  ipAddress,
+  expires,
+  type,
+  secret = config.jwt.secret
+) => {
   const payload = {
     sub: userId,
+    ip: ipAddress,
     iat: Math.floor(DateTime.now().toSeconds()),
     exp: Math.floor(expires.toSeconds()),
     type,
@@ -78,43 +85,53 @@ const verifyToken = async (token, type) => {
  * @param {User} user
  * @returns {Promise<Object>}
  */
-const generateAuthTokens = async (user) => {
-  const accessTokenExpires = DateTime.now().plus({
-    minutes: config.jwt.accessExpirationMinutes,
-  });
+const generateAuthTokens = async ({ user, ipAddress, refresh = true }) => {
+  const accessTokenExpires = DateTime.now()
+    .plus({
+      minutes: config.jwt.accessExpirationMinutes,
+    })
+    .toUTC();
 
   const accessToken = generateToken(
     user.id,
-    accessTokenExpires.toUTC(),
+    ipAddress,
+    accessTokenExpires,
     tokenTypes.ACCESS
   );
-
-  const refreshTokenExpires = DateTime.now().plus({
-    days: config.jwt.refreshExpirationDays,
-  });
-
-  const refreshToken = generateToken(
-    user.id,
-    refreshTokenExpires.toUTC(),
-    tokenTypes.REFRESH
-  );
-  await saveToken(
-    refreshToken,
-    user.id,
-    refreshTokenExpires.toUTC(),
-    tokenTypes.REFRESH
-  );
-
-  return {
+  const tokensResult = {
     access: {
       token: accessToken,
-      expires: accessTokenExpires.toUTC(),
-    },
-    refresh: {
-      token: refreshToken,
-      expires: refreshTokenExpires.toUTC(),
+      expires: accessTokenExpires.toJSDate(),
     },
   };
+
+  if (refresh) {
+    const refreshTokenExpires = DateTime.now()
+      .plus({
+        days: config.jwt.refreshExpirationDays,
+      })
+      .toUTC();
+
+    const refreshToken = generateToken(
+      user.id,
+      ipAddress,
+      refreshTokenExpires,
+      tokenTypes.REFRESH
+    );
+    await saveToken(
+      refreshToken,
+      user.id,
+      refreshTokenExpires.toJSDate(),
+      tokenTypes.REFRESH
+    );
+
+    tokensResult.refresh = {
+      token: refreshToken,
+      expires: refreshTokenExpires.toJSDate(),
+    };
+  }
+
+  return tokensResult;
 };
 
 /**

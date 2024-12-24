@@ -1,4 +1,4 @@
-const httpStatus = require('http-status');
+const { status: httpStatus } = require('http-status');
 const tokenService = require('./token.service');
 const userService = require('./user.service');
 const Token = require('../models/token.model');
@@ -29,7 +29,7 @@ const loginUserWithEmailAndPassword = async ({ email, password }) => {
  * @param {string} refreshToken
  * @returns {Promise}
  */
-const logout = async (refreshToken) => {
+const logout = async ({ refreshToken }) => {
   const refreshTokenDoc = await Token.findOneAndDelete({
     token: refreshToken,
     type: tokenTypes.REFRESH,
@@ -52,8 +52,11 @@ const logout = async (refreshToken) => {
  * @param {string} refreshToken
  * @returns {Promise<Object>}
  */
-const refreshAuth = async ({ refreshToken }) => {
+const refreshAuth = async ({ refreshToken, ipAddress }) => {
   try {
+    if (!refreshToken) {
+      throw new ApiError(httpStatus.UNAUTHORIZED, authMessage.INVALID_TOKEN);
+    }
     const refreshTokenDoc = await tokenService.verifyToken(
       refreshToken,
       tokenTypes.REFRESH
@@ -62,8 +65,7 @@ const refreshAuth = async ({ refreshToken }) => {
     if (!user) {
       throw new Error();
     }
-    await refreshTokenDoc.deleteOne();
-    return tokenService.generateAuthTokens(user);
+    return tokenService.generateAuthTokens({ user, ipAddress, refresh: false });
   } catch (error) {
     throw new ApiError(httpStatus.UNAUTHORIZED, error.message);
   }

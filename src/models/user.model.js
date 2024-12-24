@@ -40,7 +40,7 @@ const userSchema = mongoose.Schema(
     role: {
       type: String,
       enum: roles,
-      default: 'user',
+      default: 'patient',
     },
     isEmailVerified: {
       type: Boolean,
@@ -48,7 +48,7 @@ const userSchema = mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: false,
+      default: true,
     },
   },
   {
